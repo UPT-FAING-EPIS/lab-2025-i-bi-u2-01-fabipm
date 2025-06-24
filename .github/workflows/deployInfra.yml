@@ -67,7 +67,7 @@ jobs:
           -var="environment=lab"
 
     - name: Upload Plan
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: terraform-plan
         path: ${{ env.WORKING_DIR }}/tfplan
@@ -94,7 +94,7 @@ jobs:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
     - name: Download Plan
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: terraform-plan
         path: ${{ env.WORKING_DIR }}
