@@ -28,7 +28,7 @@ variable "sql_server_name" {
 variable "my_ip_address" {
   description = "Tu dirección IP para reglas de firewall"
   type        = string
-  default     = "38.250.158.179"  # Tu IP actual
+  default     = "38.250.158.179" # Tu IP actual
 }
 
 variable "environment" {
@@ -53,7 +53,7 @@ resource "azurerm_mssql_database" "modelo01" {
   name      = "modelo01_envios"
   server_id = data.azurerm_mssql_server.lab_server.id
   sku_name  = "Basic"
-  
+
   tags = {
     Environment = var.environment
     Model       = "Envios"
@@ -67,7 +67,7 @@ resource "azurerm_mssql_database" "modelo02" {
   name      = "modelo02_reservas"
   server_id = data.azurerm_mssql_server.lab_server.id
   sku_name  = "Basic"
-  
+
   tags = {
     Environment = var.environment
     Model       = "Reservas"
@@ -81,7 +81,7 @@ resource "azurerm_mssql_database" "modelo03" {
   name      = "modelo03_adicional"
   server_id = data.azurerm_mssql_server.lab_server.id
   sku_name  = "Basic"
-  
+
   tags = {
     Environment = var.environment
     Model       = "Adicional"
@@ -135,7 +135,7 @@ output "databases" {
 
 output "connection_instructions" {
   description = "Instrucciones de conexión"
-  value = <<-EOT
+  value       = <<-EOT
     
     🎯 BASES DE DATOS CREADAS EXITOSAMENTE:
     
