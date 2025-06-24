@@ -1,0 +1,15 @@
+# terraform.tfvars.example
+# Copia este archivo a terraform.tfvars y modifica los valores según tu configuración
+
+# Nombre del grupo de recursos existente en Azure
+resource_group_name = "recursosLabBI"
+
+# Nombre del servidor SQL existente en Azure  
+sql_server_name = "serverlabBIU2"
+
+# Tu dirección IP actual para acceso al servidor SQL
+# Obtén tu IP en: https://whatismyipaddress.com/
+my_ip_address = "0.0.0.0"  # Reemplaza con tu IP actual
+
+# Entorno de trabajo
+environment = "lab"

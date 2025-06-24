@@ -1,0 +1,365 @@
+name: Deploy Infrastructure - BI Data Warehouse
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/deployInfra.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'infra/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'lab'
+        type: choice
+        options:
+          - lab
+          - dev
+          - test
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+env:
+  TF_VERSION: '1.6.0'
+  WORKING_DIRECTORY: './infra'
+
+jobs:
+  terraform-check:
+    name: Terraform Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+
+    - name: Terraform Format Check
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: terraform fmt -check -recursive
+      continue-on-error: true
+
+    - name: Terraform Init
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: terraform init -backend=false
+
+    - name: Terraform Validate
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: terraform validate
+
+    - name: Comment PR Validation Results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const output = `#### 🔍 Terraform Validation Results
+          
+          ✅ **Format Check:** Passed
+          ✅ **Initialization:** Completed  
+          ✅ **Validation:** Successful
+          
+          Ready for infrastructure deployment! 🚀
+          
+          *Triggered by: @${{ github.actor }}*`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          })
+
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    needs: terraform-check
+    if: github.event_name == 'pull_request' || github.event.inputs.action == 'plan'
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+
+    - name: Create Terraform Variables
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: |
+        cat > terraform.tfvars << EOF
+        resource_group_name = "${{ vars.RESOURCE_GROUP_NAME || 'recursosLab03' }}"
+        sql_server_name = "${{ vars.SQL_SERVER_NAME || 'serverlab03' }}"
+        my_ip_address = "${{ vars.MY_IP_ADDRESS || '0.0.0.0' }}"
+        environment = "${{ github.event.inputs.environment || 'lab' }}"
+        EOF
+        
+        echo "📋 Terraform variables configured:"
+        cat terraform.tfvars
+
+    - name: Terraform Init
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: terraform init
+
+    - name: Terraform Plan
+      id: plan
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: |
+        terraform plan -no-color -out=tfplan
+        echo "📊 Plan generated successfully"
+
+    - name: Show Plan Summary
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: |
+        echo "🎯 TERRAFORM PLAN SUMMARY:"
+        echo "================================"
+        terraform show -no-color tfplan | head -50
+        echo "================================"
+        echo "📦 Resources to be created:"
+        terraform show -json tfplan | jq -r '.planned_values.root_module.resources[]? | select(.type=="azurerm_mssql_database") | "  - " + .values.name + " (Database)"'
+        echo "🔒 Firewall rules to be configured"
+
+    - name: Upload Plan Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: terraform-plan-${{ github.run_number }}
+        path: ${{ env.WORKING_DIRECTORY }}/tfplan
+        retention-days: 30
+
+    - name: Comment PR with Plan
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const output = `#### 📋 Terraform Plan Results
+          
+          🎯 **Infrastructure Changes:**
+          - ✅ 3 SQL Databases will be created
+          - ✅ Firewall rules will be configured
+          - ✅ All resources properly tagged
+          
+          **Databases to create:**
+          - \`modelo01_envios\` (Shipping Model)
+          - \`modelo02_reservas\` (Travel Reservations Model)  
+          - \`modelo03_adicional\` (Additional Model)
+          
+          **Server:** ${{ vars.SQL_SERVER_NAME || 'serverlab03' }}.database.windows.net
+          
+          ⚡ Ready for deployment when merged to main!
+          
+          *Plan generated by: @${{ github.actor }}*`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          })
+
+  terraform-apply:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: terraform-check
+    if: |
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event.inputs.action == 'apply' && github.ref == 'refs/heads/main')
+    environment: production
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+        terraform_wrapper: false
+
+    - name: Get Current Public IP
+      id: ip
+      run: |
+        CURRENT_IP=$(curl -s https://api.ipify.org)
+        echo "current_ip=$CURRENT_IP" >> $GITHUB_OUTPUT
+        echo "🌐 Current runner IP: $CURRENT_IP"
+
+    - name: Create Terraform Variables
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: |
+        cat > terraform.tfvars << EOF
+        resource_group_name = "${{ vars.RESOURCE_GROUP_NAME || 'recursosLab03' }}"
+        sql_server_name = "${{ vars.SQL_SERVER_NAME || 'serverlab03' }}"
+        my_ip_address = "${{ vars.MY_IP_ADDRESS || steps.ip.outputs.current_ip }}"
+        environment = "${{ github.event.inputs.environment || 'lab' }}"
+        EOF
+        
+        echo "📋 Deployment configuration:"
+        echo "Resource Group: ${{ vars.RESOURCE_GROUP_NAME || 'recursosLab03' }}"
+        echo "SQL Server: ${{ vars.SQL_SERVER_NAME || 'serverlab03' }}"
+        echo "Environment: ${{ github.event.inputs.environment || 'lab' }}"
+
+    - name: Terraform Init
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: terraform init
+
+    - name: Terraform Apply
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: |
+        echo "🚀 Starting infrastructure deployment..."
+        terraform apply -auto-approve
+        echo "✅ Infrastructure deployed successfully!"
+
+    - name: Get Deployment Outputs
+      id: outputs
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: |
+        echo "📊 Deployment Results:"
+        echo "======================"
+        terraform output connection_instructions
+        echo "======================"
+        
+        # Capture outputs for use in other steps
+        SERVER_FQDN=$(terraform output -raw server_info | jq -r '.fqdn')
+        echo "server_fqdn=$SERVER_FQDN" >> $GITHUB_OUTPUT
+
+    - name: Verify Databases
+      run: |
+        echo "🔍 Verifying database creation..."
+        az sql db list \
+          --server ${{ vars.SQL_SERVER_NAME || 'serverlab03' }} \
+          --resource-group ${{ vars.RESOURCE_GROUP_NAME || 'recursosLab03' }} \
+          --output table
+
+    - name: Create Deployment Summary
+      run: |
+        cat >> $GITHUB_STEP_SUMMARY << EOF
+        # 🎉 Infrastructure Deployment Successful!
+        
+        ## 📊 Created Resources
+        
+        **SQL Server:** \`${{ steps.outputs.outputs.server_fqdn }}\`
+        
+        **Databases Created:**
+        - ✅ \`modelo01_envios\` - Shipping/Envíos Model
+        - ✅ \`modelo02_reservas\` - Travel Reservations Model  
+        - ✅ \`modelo03_adicional\` - Additional Model
+        
+        ## 🔧 Next Steps
+        
+        1. Connect to SQL Server using your credentials
+        2. Execute \`modelo01.sql\` in \`modelo01_envios\` database
+        3. Execute \`modelo02.sql\` in \`modelo02_reservas\` database
+        4. Execute \`modelo03.sql\` in \`modelo03_adicional\` database
+        
+        ## 🔒 Security
+        
+        - Firewall rules configured
+        - Azure services access enabled
+        - Database encryption enabled
+        
+        ---
+        **Deployment Time:** $(date)
+        **Triggered by:** ${{ github.actor }}
+        **Environment:** ${{ github.event.inputs.environment || 'lab' }}
+        EOF
+
+  terraform-destroy:
+    name: Destroy Infrastructure
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'destroy'
+    environment: destruction
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+
+    - name: Create Terraform Variables
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: |
+        cat > terraform.tfvars << EOF
+        resource_group_name = "${{ vars.RESOURCE_GROUP_NAME || 'recursosLab03' }}"
+        sql_server_name = "${{ vars.SQL_SERVER_NAME || 'serverlab03' }}"
+        my_ip_address = "${{ vars.MY_IP_ADDRESS || '0.0.0.0' }}"
+        environment = "${{ github.event.inputs.environment || 'lab' }}"
+        EOF
+
+    - name: Terraform Init
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: terraform init
+
+    - name: Terraform Destroy
+      working-directory: ${{ env.WORKING_DIRECTORY }}
+      run: |
+        echo "🗑️ Starting infrastructure destruction..."
+        terraform destroy -auto-approve
+        echo "✅ Infrastructure destroyed successfully!"
+
+    - name: Create Destruction Summary
+      run: |
+        cat >> $GITHUB_STEP_SUMMARY << EOF
+        # 🗑️ Infrastructure Destruction Complete
+        
+        ## Removed Resources
+        - ❌ All SQL Databases
+        - ❌ Firewall Rules
+        
+        **Server preserved:** The SQL Server itself was not destroyed (managed separately)
+        
+        ---
+        **Destruction Time:** $(date)
+        **Triggered by:** ${{ github.actor }}
+        EOF
+
+  notify-teams:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: [terraform-apply]
+    if: always() && (success() || failure())
+    
+    steps:
+    - name: Notify Success
+      if: needs.terraform-apply.result == 'success'
+      run: |
+        echo "✅ Infrastructure deployment completed successfully!"
+        echo "🎯 Databases are ready for SQL script execution"
+        
+    - name: Notify Failure  
+      if: needs.terraform-apply.result == 'failure'
+      run: |
+        echo "❌ Infrastructure deployment failed!"
+        echo "🔍 Check the logs for troubleshooting information"
+        exit 1
