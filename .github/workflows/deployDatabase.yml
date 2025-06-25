@@ -51,17 +51,18 @@ jobs:
 
     - name: Download SQL Server JDBC Driver
       run: |
-        wget https://download.microsoft.com/download/8/6/8/868e5fc4-7bfe-494d-8f9d-115cbcdb52ae/sqljdbc_12.4.2.0_enu.tar.gz
-        tar -xzf sqljdbc_12.4.2.0_enu.tar.gz
+        wget https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.4.2.jre11/mssql-jdbc-12.4.2.jre11.jar
+        mkdir -p jdbc
+        mv mssql-jdbc-12.4.2.jre11.jar jdbc/
 
     - name: Deploy Modelo01 with Liquibase
       run: |
         echo "🚀 Deploying modelo01.sql to modelo01_envios using Liquibase..."
         ./liquibase \
           --driver=com.microsoft.sqlserver.jdbc.SQLServerDriver \
-          --classpath=sqljdbc_12.4/enu/mssql-jdbc-12.4.2.jre11.jar \
+          --classpath=jdbc/mssql-jdbc-12.4.2.jre11.jar \
           --changeLogFile=modelo01.sql \
-          --url="jdbc:sqlserver://$SQL_SERVER:1433;database=modelo01_envios;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;" \
+          --url="jdbc:sqlserver://$SQL_SERVER:1433;database=modelo01_envios;encrypt=true;trustServerCertificate=true;" \
           --username=$SQL_USER \
           --password="${{ secrets.SQL_ADMIN_PASSWORD }}" \
           update
@@ -72,9 +73,9 @@ jobs:
         echo "🚀 Deploying modelo02.sql to modelo02_reservas using Liquibase..."
         ./liquibase \
           --driver=com.microsoft.sqlserver.jdbc.SQLServerDriver \
-          --classpath=sqljdbc_12.4/enu/mssql-jdbc-12.4.2.jre11.jar \
+          --classpath=jdbc/mssql-jdbc-12.4.2.jre11.jar \
           --changeLogFile=modelo02.sql \
-          --url="jdbc:sqlserver://$SQL_SERVER:1433;database=modelo02_reservas;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;" \
+          --url="jdbc:sqlserver://$SQL_SERVER:1433;database=modelo02_reservas;encrypt=true;trustServerCertificate=true;" \
           --username=$SQL_USER \
           --password="${{ secrets.SQL_ADMIN_PASSWORD }}" \
           update
@@ -85,9 +86,9 @@ jobs:
         echo "🚀 Deploying modelo03.sql to modelo03_adicional using Liquibase..."
         ./liquibase \
           --driver=com.microsoft.sqlserver.jdbc.SQLServerDriver \
-          --classpath=sqljdbc_12.4/enu/mssql-jdbc-12.4.2.jre11.jar \
+          --classpath=jdbc/mssql-jdbc-12.4.2.jre11.jar \
           --changeLogFile=modelo03.sql \
-          --url="jdbc:sqlserver://$SQL_SERVER:1433;database=modelo03_adicional;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;" \
+          --url="jdbc:sqlserver://$SQL_SERVER:1433;database=modelo03_adicional;encrypt=true;trustServerCertificate=true;" \
           --username=$SQL_USER \
           --password="${{ secrets.SQL_ADMIN_PASSWORD }}" \
           update
