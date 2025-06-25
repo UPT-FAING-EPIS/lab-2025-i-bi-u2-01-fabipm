@@ -26,7 +26,7 @@ IF OBJECT_ID('DimGrupoCentroCosto', 'U') IS NOT NULL DROP TABLE DimGrupoCentroCo
 
 CREATE TABLE Pais (
     idPais INT PRIMARY KEY,
-    nombre VARCHAR(100)
+    nombre VARCHAR(1000)
 );
 
 CREATE TABLE Grupo (

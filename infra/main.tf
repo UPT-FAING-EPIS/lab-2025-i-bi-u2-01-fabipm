@@ -19,6 +19,7 @@ variable "resource_group_name" {
   default     = "recursosLab03"
 }
 
+
 variable "sql_server_name" {
   description = "Nombre del servidor SQL existente"
   type        = string
