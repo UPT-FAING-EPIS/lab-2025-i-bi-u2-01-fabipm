@@ -13,7 +13,6 @@ on:
         default: 'all'
         type: choice
         options:
-          - all
           - modelo01
           - modelo02
           - modelo03
