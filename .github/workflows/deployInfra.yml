@@ -1,4 +1,4 @@
-name: Deploy Infrastructure terraform liquibase
+name: Deploy Infrastructure terraform 
 
 on:
   push:

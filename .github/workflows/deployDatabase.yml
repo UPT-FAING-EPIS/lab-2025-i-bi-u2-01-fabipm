@@ -1,4 +1,4 @@
-name: Deploy Database Models
+name: Deploy Database Models with Liquibase
 
 on:
   push:
@@ -21,10 +21,11 @@ on:
 env:
   SQL_SERVER: 'serverlab03.database.windows.net'
   SQL_USER: 'fabiola'
+  LIQUIBASE_VERSION: '4.25.1'
 
 jobs:
   deploy-models:
-    name: Deploy SQL Models
+    name: Deploy SQL Models with Liquibase
     runs-on: ubuntu-latest
     
     steps:
@@ -36,39 +37,71 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Install SQL Tools
-      run: |
-        curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-        curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
-        sudo apt-get update
-        sudo ACCEPT_EULA=Y apt-get install -y mssql-tools
+    - name: Setup Java for Liquibase
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
 
-    - name: Deploy Modelo01
+    - name: Download Liquibase
+      run: |
+        wget https://github.com/liquibase/liquibase/releases/download/v${{ env.LIQUIBASE_VERSION }}/liquibase-${{ env.LIQUIBASE_VERSION }}.tar.gz
+        tar -xzf liquibase-${{ env.LIQUIBASE_VERSION }}.tar.gz
+        chmod +x liquibase
+
+    - name: Download SQL Server JDBC Driver
+      run: |
+        wget https://download.microsoft.com/download/8/6/8/868e5fc4-7bfe-494d-8f9d-115cbcdb52ae/sqljdbc_12.4.2.0_enu.tar.gz
+        tar -xzf sqljdbc_12.4.2.0_enu.tar.gz
+
+    - name: Deploy Modelo01 with Liquibase
       if: github.event.inputs.models == 'all' || github.event.inputs.models == 'modelo01' || github.event.inputs.models == ''
       run: |
-        echo "🚀 Deploying modelo01.sql to modelo01_envios..."
-        /opt/mssql-tools/bin/sqlcmd -S $SQL_SERVER -d modelo01_envios -U $SQL_USER -P "${{ secrets.SQL_ADMIN_PASSWORD }}" -i modelo01.sql -b
-        echo "✅ Modelo01 deployed successfully!"
+        echo "🚀 Deploying modelo01.sql to modelo01_envios using Liquibase..."
+        ./liquibase \
+          --driver=com.microsoft.sqlserver.jdbc.SQLServerDriver \
+          --classpath=sqljdbc_12.4/enu/mssql-jdbc-12.4.2.jre11.jar \
+          --changeLogFile=modelo01.sql \
+          --url="jdbc:sqlserver://$SQL_SERVER:1433;database=modelo01_envios;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;" \
+          --username=$SQL_USER \
+          --password="${{ secrets.SQL_ADMIN_PASSWORD }}" \
+          update
+        echo "✅ Modelo01 deployed successfully with Liquibase!"
 
-    - name: Deploy Modelo02
+    - name: Deploy Modelo02 with Liquibase
       if: github.event.inputs.models == 'all' || github.event.inputs.models == 'modelo02' || github.event.inputs.models == ''
       run: |
-        echo "🚀 Deploying modelo02.sql to modelo02_reservas..."
-        /opt/mssql-tools/bin/sqlcmd -S $SQL_SERVER -d modelo02_reservas -U $SQL_USER -P "${{ secrets.SQL_ADMIN_PASSWORD }}" -i modelo02.sql -b
-        echo "✅ Modelo02 deployed successfully!"
+        echo "🚀 Deploying modelo02.sql to modelo02_reservas using Liquibase..."
+        ./liquibase \
+          --driver=com.microsoft.sqlserver.jdbc.SQLServerDriver \
+          --classpath=sqljdbc_12.4/enu/mssql-jdbc-12.4.2.jre11.jar \
+          --changeLogFile=modelo02.sql \
+          --url="jdbc:sqlserver://$SQL_SERVER:1433;database=modelo02_reservas;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;" \
+          --username=$SQL_USER \
+          --password="${{ secrets.SQL_ADMIN_PASSWORD }}" \
+          update
+        echo "✅ Modelo02 deployed successfully with Liquibase!"
 
-    - name: Deploy Modelo03
+    - name: Deploy Modelo03 with Liquibase
       if: github.event.inputs.models == 'all' || github.event.inputs.models == 'modelo03' || github.event.inputs.models == ''
       run: |
-        echo "🚀 Deploying modelo03.sql to modelo03_adicional..."
-        /opt/mssql-tools/bin/sqlcmd -S $SQL_SERVER -d modelo03_adicional -U $SQL_USER -P "${{ secrets.SQL_ADMIN_PASSWORD }}" -i modelo03.sql -b
-        echo "✅ Modelo03 deployed successfully!"
+        echo "🚀 Deploying modelo03.sql to modelo03_adicional using Liquibase..."
+        ./liquibase \
+          --driver=com.microsoft.sqlserver.jdbc.SQLServerDriver \
+          --classpath=sqljdbc_12.4/enu/mssql-jdbc-12.4.2.jre11.jar \
+          --changeLogFile=modelo03.sql \
+          --url="jdbc:sqlserver://$SQL_SERVER:1433;database=modelo03_adicional;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;" \
+          --username=$SQL_USER \
+          --password="${{ secrets.SQL_ADMIN_PASSWORD }}" \
+          update
+        echo "✅ Modelo03 deployed successfully with Liquibase!"
 
     - name: Deployment Summary
       run: |
-        echo "🎉 Database models deployment completed!"
+        echo "🎉 Database models deployment completed with Liquibase!"
         echo "📊 Models deployed to:"
         echo "  - modelo01_envios (Shipping model)"
         echo "  - modelo02_reservas (Travel reservations model)" 
         echo "  - modelo03_adicional (Additional model)"
         echo "🔗 Server: $SQL_SERVER"
+        echo "🛠️ Tool: Liquibase v${{ env.LIQUIBASE_VERSION }}"
