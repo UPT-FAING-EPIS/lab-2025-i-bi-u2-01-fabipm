@@ -91,12 +91,12 @@ resource "azurerm_mssql_database" "modelo03" {
 }
 
 # Regla de firewall para permitir tu IP
-resource "azurerm_mssql_firewall_rule" "allow_my_ip" {
-  name             = "AllowMyIP-Terraform"
-  server_id        = data.azurerm_mssql_server.lab_server.id
-  start_ip_address = var.my_ip_address
-  end_ip_address   = var.my_ip_address
-}
+#resource "azurerm_mssql_firewall_rule" "allow_my_ip" {
+#  name             = "AllowMyIP-Terraform"
+#  server_id        = data.azurerm_mssql_server.lab_server.id
+#  start_ip_address = var.my_ip_address
+#  end_ip_address   = var.my_ip_address
+#}
 
 # Regla de firewall para permitir servicios de Azure
 resource "azurerm_mssql_firewall_rule" "allow_azure_services" {
