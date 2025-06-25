@@ -55,7 +55,6 @@ jobs:
         tar -xzf sqljdbc_12.4.2.0_enu.tar.gz
 
     - name: Deploy Modelo01 with Liquibase
-      if: github.event.inputs.models == 'all' || github.event.inputs.models == 'modelo01' || github.event.inputs.models == ''
       run: |
         echo "🚀 Deploying modelo01.sql to modelo01_envios using Liquibase..."
         ./liquibase \
@@ -69,7 +68,6 @@ jobs:
         echo "✅ Modelo01 deployed successfully with Liquibase!"
 
     - name: Deploy Modelo02 with Liquibase
-      if: github.event.inputs.models == 'all' || github.event.inputs.models == 'modelo02' || github.event.inputs.models == ''
       run: |
         echo "🚀 Deploying modelo02.sql to modelo02_reservas using Liquibase..."
         ./liquibase \
@@ -83,7 +81,6 @@ jobs:
         echo "✅ Modelo02 deployed successfully with Liquibase!"
 
     - name: Deploy Modelo03 with Liquibase
-      if: github.event.inputs.models == 'all' || github.event.inputs.models == 'modelo03' || github.event.inputs.models == ''
       run: |
         echo "🚀 Deploying modelo03.sql to modelo03_adicional using Liquibase..."
         ./liquibase \
